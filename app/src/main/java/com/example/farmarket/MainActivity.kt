@@ -18,8 +18,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.navigation.NavHostController
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.Place
+
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,28 +49,44 @@ fun FarmarketApp() {
                 },
                 onGoToCart = {
                     navController.navigate("checkout")
+                },
+                onOpenMap = {
+                    navController.navigate("mapa")
                 }
             )
         }
         composable("checkout") {
-            CheckoutScreen(cartItems)
+            CheckoutScreen(
+                cartItems = cartItems,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("mapa") {
+            MapaComFarmaciasScreen(navController)
         }
     }
 }
 
-data class Product(val name: String, val imageRes: Int)
+
+data class Product(val name: String
+                    , val imageRes: Int
+                    ,  val pharmacy: String )// novo campo)
 
 val productList = listOf(
-    Product("Paracetamol 500mg", android.R.drawable.ic_menu_info_details),
-    Product("Ibuprofeno 400mg", android.R.drawable.ic_menu_info_details),
-    Product("Dipirona 1g", android.R.drawable.ic_menu_info_details),
-    Product("Vitamina C", android.R.drawable.ic_menu_info_details),
-    Product("Antisséptico Bucal", android.R.drawable.ic_menu_info_details)
+    Product("Paracetamol 500mg", R.drawable.baseline_medication_24, "Droga Raia"),
+    Product("Ibuprofeno 400mg", R.drawable.baseline_medication_24, "Drogaven"),
+    Product("Dipirona 1g", R.drawable.baseline_medication_24, "Farmacia 24h"),
+    Product("Vitamina C", R.drawable.baseline_medication_24, "Pharmacia"),
+    Product("Antisséptico Bucal", R.drawable.baseline_medication_24, "Droga Raia")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onAddToCart: (Product) -> Unit, onGoToCart: () -> Unit) {
+fun HomeScreen(
+    onAddToCart: (Product) -> Unit,
+    onGoToCart: () -> Unit,
+    onOpenMap: () -> Unit
+){
     Scaffold(
         topBar = {
             TopAppBar(
@@ -72,7 +94,7 @@ fun HomeScreen(onAddToCart: (Product) -> Unit, onGoToCart: () -> Unit) {
                 actions = {
                     IconButton(onClick = onGoToCart) {
                         Icon(
-                            painter = painterResource(android.R.drawable.ic_menu_view),
+                            imageVector = Icons.Filled.ShoppingCart,
                             contentDescription = "Carrinho"
                         )
                     }
@@ -83,6 +105,18 @@ fun HomeScreen(onAddToCart: (Product) -> Unit, onGoToCart: () -> Unit) {
         LazyColumn(contentPadding = padding) {
             items(productList) { product ->
                 ProductItem(product, onAddToCart)
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onOpenMap,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text("Ver Mapa de Farmácias")
+                }
             }
         }
     }
@@ -104,6 +138,7 @@ fun ProductItem(product: Product, onAddToCart: (Product) -> Unit) {
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = product.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(text = product.pharmacy, fontSize = 14.sp, color = Color.Gray) // novo texto
         }
         Button(onClick = { onAddToCart(product) }) {
             Text("Adicionar")
@@ -111,31 +146,46 @@ fun ProductItem(product: Product, onAddToCart: (Product) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckoutScreen(cartItems: List<Product>) {
+fun CheckoutScreen(cartItems: List<Product>, onBack: () -> Unit) {
     var address by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf("") }
     var orderPlaced by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
-    if (orderPlaced) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Pedido realizado com sucesso!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Voltar para as compras") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Voltar"
+                        )
+                    }
+                }
+            )
         }
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    ) { paddingValues ->
+        if (orderPlaced) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Pedido realizado com sucesso!", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Itens no carrinho:", fontWeight = FontWeight.Bold)
@@ -147,7 +197,10 @@ fun CheckoutScreen(cartItems: List<Product>) {
 
                 OutlinedTextField(
                     value = address,
-                    onValueChange = { address = it },
+                    onValueChange = {
+                        address = it
+                        if (errorMessage.isNotEmpty()) errorMessage = "" // limpa erro se usuário digitar
+                    },
                     label = { Text("Endereço de entrega") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -156,15 +209,33 @@ fun CheckoutScreen(cartItems: List<Product>) {
 
                 OutlinedTextField(
                     value = paymentMethod,
-                    onValueChange = { paymentMethod = it },
+                    onValueChange = {
+                        paymentMethod = it
+                        if (errorMessage.isNotEmpty()) errorMessage = ""
+                    },
                     label = { Text("Forma de pagamento (Dinheiro, Cartão, Pix)") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                if (errorMessage.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = { orderPlaced = true },
+                    onClick = {
+                        if (address.isBlank() || paymentMethod.isBlank()) {
+                            errorMessage = "Por favor, preencha todos os campos."
+                        } else {
+                            orderPlaced = true
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Finalizar Pedido")
@@ -173,3 +244,46 @@ fun CheckoutScreen(cartItems: List<Product>) {
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MapaComFarmaciasScreen(navController: NavHostController) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Mapa de Farmácias") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Voltar"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.mapa_farmacias),
+                contentDescription = "Mapa de farmácias",
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Icon(
+                imageVector = Icons.Default.Place,
+                contentDescription = "Farmácia A",
+                tint = Color.Red,
+                modifier = Modifier
+                    .offset(x = 100.dp, y = 200.dp)
+                    .size(32.dp)
+            )
+        }
+    }
+}
+
+
